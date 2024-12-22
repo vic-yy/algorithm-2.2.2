@@ -1,103 +1,142 @@
-#include <cstdio>
 #include <iostream>
-#include "../include/algoritmo.hpp"
+#include "../include/flow_functions.hpp"
+#include "../include/flow_functions.cpp"
 
-int main(){
-    int numPontos;
-    int numFios;
+// Declarações de constantes/defines
+#ifndef MAX_SIZE
+#endif
 
-    Grafo redeEletrica; 
-    Grafo grafoResidual;
+// ------------------- DECLARAÇÃO DAS FUNÇÕES AUXILIARES -------------------
+void initCapacities(int**& capacities);
+void readInput(int& numNodes, int& numEdges);
+void readNodes(int numNodes, int& totalDemand, Graph& powerGrid, Graph& residualGraph);
+void readEdges(int numEdges, Graph& powerGrid, Graph& residualGraph, int** capacities);
+int computeMaxFlow(Graph& powerGrid, Graph& residualGraph, int totalDemand, int** capacities);
+void cleanupCapacities(int** capacities);
 
-    int** capacidades;
-    capacidades = new int*[TAMANHO];
-    for(int i = 0; i < TAMANHO; i++){
-        capacidades[i] = new int[TAMANHO];
-        for(int j = 0; j < TAMANHO; j++){
-            capacidades[i][j] = -1;
+// --------------------------- FUNÇÃO PRINCIPAL ----------------------------
+int main() {
+    int numNodes = 0;
+    int numEdges = 0;
+    int totalDemand = 0;
+
+    // Criação dos grafos
+    Graph powerGrid;
+    Graph residualGraph;
+
+    // Alocação dinâmica da matriz capacities
+    int** capacities;
+    initCapacities(capacities);
+
+    // 1) Ler quantidades de nós e arestas
+    readInput(numNodes, numEdges);
+
+    // 2) Ler nós e calcular demanda total
+    readNodes(numNodes, totalDemand, powerGrid, residualGraph);
+
+    // 3) Ler arestas
+    readEdges(numEdges, powerGrid, residualGraph, capacities);
+
+    // 4) Calcular fluxo máximo e mostrar resultados
+    computeMaxFlow(powerGrid, residualGraph, totalDemand, capacities);
+
+    // 5) Liberar memória
+    cleanupCapacities(capacities);
+
+    return 0;
+}
+
+// -------------------------- IMPLEMENTAÇÕES -------------------------------
+
+// 1) Inicializar a matriz de capacidades
+void initCapacities(int**& capacities) {
+    capacities = new int*[MAX_SIZE];
+    for (int i = 0; i < MAX_SIZE; i++) {
+        capacities[i] = new int[MAX_SIZE];
+        for (int j = 0; j < MAX_SIZE; j++) {
+            capacities[i][j] = -1;
         }
     }
+}
 
-    scanf("%d %d", &numPontos, &numFios);
+// 2) Ler valores de entrada básicos: número de nós e arestas
+void readInput(int& numNodes, int& numEdges) {
+    std::cin >> numNodes >> numEdges;
+}
 
-    int demanda_total = 0;
-    for(int i = 0; i < numPontos; i++){
-        int identificador;
-        char tipo;
-        int demanda;
+// 3) Ler os nós, atribuir tipo e demanda, adicionar aos grafos, bem como acumular demanda total
+void readNodes(int numNodes, int& totalDemand, Graph& powerGrid, Graph& residualGraph) {
+    for (int i = 0; i < numNodes; i++) {
+        int id, demand;
+        char type;
 
-        scanf("%d %d", &identificador, &demanda);
-        demanda_total += demanda;
-        if(demanda == 0){
-            tipo = 'g';
-        }
-        else{
-            tipo = 'c';
-        }
-        Ponto ponto(identificador, tipo, demanda);
+        std::cin >> id >> demand;
+        totalDemand += demand;
+        type = (demand == 0) ? 'a' : 'b';
 
-        redeEletrica.addPonto(ponto);
-        grafoResidual.addPonto(ponto);
+        Node node(id, type, demand);
+        powerGrid.addNode(node);
+        residualGraph.addNode(node);
     }
+}
 
-    for(int i = 0; i < numFios; i++){
-        int origem;
-        int destino;
-        int capacidade;
+// 4) Ler as arestas e preencher as conexões no grafo e na matriz capacities
+void readEdges(int numEdges, Graph& powerGrid, Graph& residualGraph, int** capacities) {
+    for (int i = 0; i < numEdges; i++) {
+        int source, sink, capacity;
+        std::cin >> source >> sink >> capacity;
 
-        scanf("%d %d %d", &origem, &destino, &capacidade);
-
-        redeEletrica.setConexao(origem, destino, capacidade);
-        grafoResidual.setConexao(origem, destino, capacidade);
-        capacidades[origem][destino] = capacidade;
+        powerGrid.setConnection(source, sink, capacity);
+        residualGraph.setConnection(source, sink, capacity);
+        capacities[source][sink] = capacity;
     }
-    
-    int fluxoMax = fordFulkerson(&grafoResidual, redeEletrica.getOrigem(), redeEletrica.getDestino());
+}
 
-    std::cout << fluxoMax << std::endl;
+// 5) Calcular o fluxo máximo e imprimir todos os resultados
+int computeMaxFlow(Graph& powerGrid, Graph& residualGraph, int totalDemand, int** capacities) {
+    // Cálculo do Ford-Fulkerson
+    int maxFlow = fordFulkerson(&residualGraph, powerGrid.getSource(), powerGrid.getSink());
 
-    std::cout << (demanda_total - fluxoMax) << std::endl;
+    // Impressão dos resultados
+    std::cout << maxFlow << std::endl;
+    std::cout << (totalDemand - maxFlow) << std::endl;
+    std::cout << (residualGraph.getTotalGeneration() - maxFlow) << std::endl;
 
-    std::cout << (grafoResidual.getGeracaoTotal() - fluxoMax) << std::endl;
+    // Encontrar arestas saturadas
+    std::vector<std::pair<int, int>> saturatedEdges = residualGraph.getSaturatedEdges();
+    std::cout << saturatedEdges.size() << std::endl;
 
-    std::vector<std::pair<int, int>> saturadas = grafoResidual.getSaturadas();
-    std::cout << saturadas.size() << std::endl;
+    // Enquanto houver arestas saturadas, imprimir a de maior capacidade e remover do vetor
+    while (!saturatedEdges.empty()) {
+        int highestCapacity = 0;
+        int bestSource = -1, bestSink = -1;
+        size_t indexOfHighest = 0;
 
-    while (!saturadas.empty()) {
-        int capacidadeMaior = 0;
-        int imaior = -1;
-        int jmaior = -1;
-        size_t indiceMaior = 0;
-
-        //encontrar a aresta com maior capacidade
-        for (size_t indice = 0; indice < saturadas.size(); ++indice) {
-            int i = saturadas[indice].first;
-            int j = saturadas[indice].second;
-            if (capacidades[i][j] > capacidadeMaior) {
-                capacidadeMaior = capacidades[i][j];
-                imaior = i;
-                jmaior = j;
-                indiceMaior = indice;
+        for (size_t index = 0; index < saturatedEdges.size(); ++index) {
+            int i = saturatedEdges[index].first;
+            int j = saturatedEdges[index].second;
+            if (capacities[i][j] > highestCapacity) {
+                highestCapacity = capacities[i][j];
+                bestSource = i;
+                bestSink = j;
+                indexOfHighest = index;
             }
         }
 
-        if (imaior != -1 && jmaior != -1) {
-            std::cout << imaior << " " << jmaior << " " << capacidadeMaior << std::endl;
+        if (bestSource != -1 && bestSink != -1) {
+            std::cout << bestSource << " " << bestSink << " " << highestCapacity << std::endl;
         }
 
-        // remover o elemento já printado
-        for (size_t indice = indiceMaior; indice < saturadas.size() - 1; ++indice) {
-            saturadas[indice] = saturadas[indice + 1];
-        }
-        saturadas.pop_back();
+        saturatedEdges.erase(saturatedEdges.begin() + indexOfHighest);
     }
 
+    return maxFlow;
+}
 
-    //limpar a memória
-    for(int i = 0; i < TAMANHO; i++){
-        delete[] capacidades[i];
+// 6) Liberar a memória alocada para a matriz capacities
+void cleanupCapacities(int** capacities) {
+    for (int i = 0; i < MAX_SIZE; i++) {
+        delete[] capacities[i];
     }
-    delete[] capacidades;
-
-    return 0;
+    delete[] capacities;
 }

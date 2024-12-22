@@ -1,45 +1,44 @@
 #
-# Copyright 2021 Alysson Ribeiro da Silva - Federal University of Minas Gerais
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-# of the Software, and to permit persons to whom the Software is furnished to do
-# so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-# PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+# Makefile para mingw32-make no Windows
 #
 
-#cc and flags
+# cc and flags
 CC = g++
 CXXFLAGS = -std=c++20 -g -Wall -Wextra -Wpedantic -Wformat-security -Wconversion -Werror
-#CXXFLAGS = -std=c++11 -O3 -Wall
 
 # folders
 INCLUDE_FOLDER = ./include/
 OBJ_FOLDER = ./obj/
 SRC_FOLDER = ./src/
+INPUT_FOLDER = ./input/
+OUTPUT_FOLDER = ./output/
 
-# all sources, objs, and header files
-MAIN = main
-TARGET = tp2
+# files
+TARGET = tp2.exe
 SRC = $(wildcard $(SRC_FOLDER)*.cpp)
 OBJ = $(patsubst $(SRC_FOLDER)%.cpp, $(OBJ_FOLDER)%.o, $(SRC))
+INPUT_FILES = $(wildcard $(INPUT_FOLDER)*.txt)
+OUTPUT_FILES = $(patsubst $(INPUT_FOLDER)%.txt, $(OUTPUT_FOLDER)%.txt, $(INPUT_FILES))
 
+# compile source files
 $(OBJ_FOLDER)%.o: $(SRC_FOLDER)%.cpp
+	@if not exist $(OBJ_FOLDER) mkdir $(OBJ_FOLDER)
 	$(CC) $(CXXFLAGS) -c $< -o $@ -I$(INCLUDE_FOLDER)
 
+# link objects and generate executable
 all: $(OBJ)
-	$(CC) $(CXXFLAGS) -o $(TARGET) $(OBJ)
+	@if not "$(OBJ)" == "" $(CC) $(CXXFLAGS) -o $(TARGET) $(OBJ)
 
+# run the executable with input files and generate output
+run: all
+	@if not exist $(OUTPUT_FOLDER) mkdir $(OUTPUT_FOLDER)
+	@for %%I in ($(INPUT_FILES)) do ( \
+		echo Processando %%I... && \
+		$(TARGET) < %%I > $(OUTPUT_FOLDER)%%~nI.txt \
+	)
+
+# clean build files and outputs
 clean:
-	@rm -rf $(OBJ_FOLDER)* $(TARGET)
+	@if exist $(OBJ_FOLDER) rd /s /q $(OBJ_FOLDER)
+	@if exist $(OUTPUT_FOLDER) rd /s /q $(OUTPUT_FOLDER)
+	@if exist $(TARGET) del $(TARGET)
